@@ -15,6 +15,14 @@ pluginManagement {
         mavenCentral()
         gradlePluginPortal()
     }
+
+    // 国内镜像
+    repositories {
+        maven { url = uri("https://mirrors.cloud.tencent.com/nexus/repository/maven-public/") }
+        maven { url = uri("https://maven.aliyun.com/repository/public") }
+        maven { url = uri("https://maven.aliyun.com/repository/google") }
+        maven { url = uri("https://maven.aliyun.com/repository/gradle-plugin") }
+    }
 }
 
 plugins {
