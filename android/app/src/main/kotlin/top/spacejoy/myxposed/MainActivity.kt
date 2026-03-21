@@ -1,4 +1,4 @@
-package top.spacejoy.myxposed.myxposed
+package top.spacejoy.myxposed
 
 import io.flutter.embedding.android.FlutterActivity
 

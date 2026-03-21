@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "top.spacejoy.myxposed.myxposed"
+    namespace = "top.spacejoy.myxposed"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -16,12 +16,12 @@ android {
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
+        jvmTarget = "17"
     }
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "top.spacejoy.myxposed.myxposed"
+        applicationId = "top.spacejoy.myxposed"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -30,7 +30,7 @@ android {
         versionName = flutter.versionName
         ndk {
             // 仅保留aarch64架构，过滤其他架构
-            abiFilters 'arm64-v8a'
+            abiFilters += listOf("arm64-v8a")
         }
     }
 
@@ -50,5 +50,5 @@ flutter {
 dependencies {
     // ... 其他依赖
     // Xposed API依赖，框架会在运行时提供
-    compileOnly 'de.robv.android.xposed:api:82'
+    compileOnly("de.robv.android.xposed:api:82")
 }
