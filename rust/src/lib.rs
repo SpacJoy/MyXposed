@@ -29,8 +29,14 @@ pub extern "system" fn Java_top_spacejoy_myxposed_XposedEntry_initXposed(
     info!("目标包名: {}", package_name);
 
     match package_name.as_str() {
-        "com.tencent.mm" => hook_wechat(&mut env),
-        "com.tencent.mobileqq" => hook_qq(&mut env),
+        "com.tencent.mm" => {
+            hook_wechat(&mut env, &lpparam);
+            bypass_signature_check(&mut env, "com.tencent.mm");
+        }
+        "com.tencent.mobileqq" => {
+            hook_qq(&mut env);
+            bypass_signature_check(&mut env, "com.tencent.mobileqq");
+        }
         "com.android.phone" => hook_phone(&mut env),
         _ => debug!("未配置对 {} 的 Hook", package_name),
     }
@@ -181,26 +187,425 @@ fn hook_method(
     Ok(())
 }
 
+/// 绕过签名验证
+fn bypass_signature_check(env: &mut JNIEnv, _target_package: &str) {
+    info!("启用签名校验绕过");
+
+    // Hook PackageManager.getPackageInfo
+    let _ = bypass_get_package_info(env);
+
+    // Hook Signature.equals
+    let _ = bypass_signature_equals(env);
+
+    // Hook Signature.toByteArray
+    let _ = bypass_signature_to_byte_array(env);
+}
+
+/// 绕过 getPackageInfo 签名校验
+fn bypass_get_package_info(env: &mut JNIEnv) -> Result<(), jni::errors::Error> {
+    info!("Hook PackageManager.getPackageInfo");
+
+    let pm_class = env.find_class("android/app/ApplicationPackageManager")?;
+    let method_name_jstr = env.new_string("getPackageInfo")?;
+
+    // 查找 getPackageInfo 方法
+    let method = {
+        let methods = env
+            .call_method(
+                &pm_class,
+                "getDeclaredMethods",
+                "()[Ljava/lang/reflect/Method;",
+                &[],
+            )?
+            .l()?;
+        let methods_array: JObjectArray = JObjectArray::from(methods);
+        let len = env.get_array_length(&methods_array)?;
+        let target_name: String = env.get_string(&method_name_jstr)?.into();
+
+        let mut found_method = JObject::null();
+        for i in 0..len {
+            let method = env.get_object_array_element(&methods_array, i)?;
+            let name_result = env
+                .call_method(&method, "getName", "()Ljava/lang/String;", &[])?
+                .l()?;
+            let name_jstr = JString::from(name_result);
+            let java_name = env.get_string(&name_jstr)?;
+            let m_name: String = java_name.into();
+            if m_name == target_name {
+                found_method = method;
+                break;
+            }
+        }
+        found_method
+    };
+
+    if method.is_null() {
+        error!("未找到 getPackageInfo 方法");
+        return Ok(());
+    }
+
+    // 创建回调并注册
+    let callback = {
+        let callback_class = env.find_class("top/spacejoy/myxposed/SignatureBypassCallback")?;
+        env.new_object(&callback_class, "(I)V", &[JValue::Int(0)])?
+    };
+
+    {
+        let callback_class = env.find_class("top/spacejoy/myxposed/HookCallback")?;
+        env.call_static_method(
+            &callback_class,
+            "hookMethod",
+            "(Ljava/lang/reflect/Member;Ltop/spacejoy/myxposed/HookCallback;)Lde/robv/android/xposed/XC_MethodHook$Unhook;",
+            &[JValue::Object(&method), JValue::Object(&callback)],
+        )?;
+    }
+
+    info!("getPackageInfo Hook 完成");
+    Ok(())
+}
+
+/// 绕过 Signature.equals
+fn bypass_signature_equals(env: &mut JNIEnv) -> Result<(), jni::errors::Error> {
+    info!("Hook Signature.equals");
+
+    let sig_class = env.find_class("android/content/pm/Signature")?;
+
+    // 查找 equals 方法
+    let method = {
+        let methods = env
+            .call_method(
+                &sig_class,
+                "getMethods",
+                "()[Ljava/lang/reflect/Method;",
+                &[],
+            )?
+            .l()?;
+        let methods_array: JObjectArray = JObjectArray::from(methods);
+        let len = env.get_array_length(&methods_array)?;
+
+        let mut found_method = JObject::null();
+        for i in 0..len {
+            let method = env.get_object_array_element(&methods_array, i)?;
+            let name_result = env
+                .call_method(&method, "getName", "()Ljava/lang/String;", &[])?
+                .l()?;
+            let name_jstr = JString::from(name_result);
+            let java_name = env.get_string(&name_jstr)?;
+            let m_name: String = java_name.into();
+            if m_name == "equals" {
+                found_method = method;
+                break;
+            }
+        }
+        found_method
+    };
+
+    if method.is_null() {
+        error!("未找到 Signature.equals 方法");
+        return Ok(());
+    }
+
+    // 创建回调并注册
+    let callback = {
+        let callback_class = env.find_class("top/spacejoy/myxposed/SignatureBypassCallback")?;
+        env.new_object(&callback_class, "(I)V", &[JValue::Int(1)])?
+    };
+
+    {
+        let callback_class = env.find_class("top/spacejoy/myxposed/HookCallback")?;
+        env.call_static_method(
+            &callback_class,
+            "hookMethod",
+            "(Ljava/lang/reflect/Member;Ltop/spacejoy/myxposed/HookCallback;)Lde/robv/android/xposed/XC_MethodHook$Unhook;",
+            &[JValue::Object(&method), JValue::Object(&callback)],
+        )?;
+    }
+
+    info!("Signature.equals Hook 完成");
+    Ok(())
+}
+
+/// 绕过 Signature.toByteArray
+fn bypass_signature_to_byte_array(env: &mut JNIEnv) -> Result<(), jni::errors::Error> {
+    info!("Hook Signature.toByteArray");
+
+    let sig_class = env.find_class("android/content/pm/Signature")?;
+
+    // 查找 toByteArray 方法
+    let method = {
+        let methods = env
+            .call_method(
+                &sig_class,
+                "getMethods",
+                "()[Ljava/lang/reflect/Method;",
+                &[],
+            )?
+            .l()?;
+        let methods_array: JObjectArray = JObjectArray::from(methods);
+        let len = env.get_array_length(&methods_array)?;
+
+        let mut found_method = JObject::null();
+        for i in 0..len {
+            let method = env.get_object_array_element(&methods_array, i)?;
+            let name_result = env
+                .call_method(&method, "getName", "()Ljava/lang/String;", &[])?
+                .l()?;
+            let name_jstr = JString::from(name_result);
+            let java_name = env.get_string(&name_jstr)?;
+            let m_name: String = java_name.into();
+            if m_name == "toByteArray" {
+                found_method = method;
+                break;
+            }
+        }
+        found_method
+    };
+
+    if method.is_null() {
+        error!("未找到 Signature.toByteArray 方法");
+        return Ok(());
+    }
+
+    // 创建回调并注册
+    let callback = {
+        let callback_class = env.find_class("top/spacejoy/myxposed/SignatureBypassCallback")?;
+        env.new_object(&callback_class, "(I)V", &[JValue::Int(2)])?
+    };
+
+    {
+        let callback_class = env.find_class("top/spacejoy/myxposed/HookCallback")?;
+        env.call_static_method(
+            &callback_class,
+            "hookMethod",
+            "(Ljava/lang/reflect/Member;Ltop/spacejoy/myxposed/HookCallback;)Lde/robv/android/xposed/XC_MethodHook$Unhook;",
+            &[JValue::Object(&method), JValue::Object(&callback)],
+        )?;
+    }
+
+    info!("Signature.toByteArray Hook 完成");
+    Ok(())
+}
+
 /// Hook 微信
-fn hook_wechat(env: &mut JNIEnv) {
+fn hook_wechat(env: &mut JNIEnv, lpparam: &JObject) {
     info!("执行微信 Hook");
+
     let _ = hook_method(
         env,
         "com.tencent.mm.ui.LauncherUI",
         "onCreate",
         "(Landroid/os/Bundle;)V",
     );
+
+    // 绕过微信内部第三方 APP 分享签名校验
+    let _ = bypass_wechat_internal_signature(env, lpparam);
+}
+
+/// 绕过微信内部的第三方 APP 签名校验
+/// Hook com.tencent.mm.pluginsdk.model.app.s.a(Context, g, String, boolean) -> true
+/// 参考: https://github.com/icespite/WXHook
+fn bypass_wechat_internal_signature(
+    env: &mut JNIEnv,
+    lpparam: &JObject,
+) -> Result<(), jni::errors::Error> {
+    info!("[+] 启用微信内部签名校验绕过");
+
+    // 从 lpparam 获取 classLoader
+    let class_loader = env
+        .get_field(lpparam, "classLoader", "Ljava/lang/ClassLoader;")?
+        .l()?;
+
+    // 调用 Java 静态方法: WechatSignatureBypass.hookAppSignatureCheck(classLoader)
+    let helper_class = env.find_class("top/spacejoy/myxposed/WechatSignatureBypass")?;
+    env.call_static_method(
+        &helper_class,
+        "hookAppSignatureCheck",
+        "(Ljava/lang/ClassLoader;)V",
+        &[JValue::Object(&class_loader)],
+    )?;
+
+    info!("[+] 微信内部签名校验绕过完成");
+    Ok(())
 }
 
 /// Hook QQ
 fn hook_qq(env: &mut JNIEnv) {
     info!("执行 QQ Hook");
+
+    // Hook SplashActivity
     let _ = hook_method(
         env,
         "com.tencent.mobileqq.activity.SplashActivity",
         "onCreate",
         "(Landroid/os/Bundle;)V",
     );
+
+    // QQ OpenAPI 签名校验绕过
+    info!("[+] QQ OpenAPI 签名验证 Hook 开始");
+
+    // 方案 1：Hook openapi.a.c 返回 true
+    let _ = hook_return_const(env, "com.tencent.mobileqq.openapi.a", "c", true);
+
+    // 方案 2：Hook OpenApiManager.verifyCallingPackage 返回 true
+    let _ = hook_return_const(
+        env,
+        "com.tencent.mobileqq.openapi.OpenApiManager",
+        "verifyCallingPackage",
+        true,
+    );
+
+    // 方案 3：Hook OpenApiManager.registerThirdApp 记录参数
+    let _ = hook_register_third_app(env);
+
+    info!("[+] QQ OpenAPI 签名验证 Hook 完成");
+}
+
+/// Hook 方法并返回常量值
+fn hook_return_const(
+    env: &mut JNIEnv,
+    class_name: &str,
+    method_name: &str,
+    return_value: bool,
+) -> Result<(), jni::errors::Error> {
+    info!(
+        "Hook {}.{} -> 返回 {}",
+        class_name, method_name, return_value
+    );
+
+    let target_class = match env.find_class(class_name.replace('.', "/").as_str()) {
+        Ok(c) => c,
+        Err(e) => {
+            error!("未找到类 {}: {:?}", class_name, e);
+            return Ok(());
+        }
+    };
+
+    // 查找方法
+    let method = {
+        let methods = env
+            .call_method(
+                &target_class,
+                "getDeclaredMethods",
+                "()[Ljava/lang/reflect/Method;",
+                &[],
+            )?
+            .l()?;
+        let methods_array: JObjectArray = JObjectArray::from(methods);
+        let len = env.get_array_length(&methods_array)?;
+
+        let mut found_method = JObject::null();
+        for i in 0..len {
+            let method = env.get_object_array_element(&methods_array, i)?;
+            let name_result = env
+                .call_method(&method, "getName", "()Ljava/lang/String;", &[])?
+                .l()?;
+            let name_jstr = JString::from(name_result);
+            let java_name = env.get_string(&name_jstr)?;
+            let m_name: String = java_name.into();
+            if m_name == method_name {
+                found_method = method;
+                break;
+            }
+        }
+        found_method
+    };
+
+    if method.is_null() {
+        error!("未找到方法: {}.{}", class_name, method_name);
+        return Ok(());
+    }
+
+    // 创建返回常量的回调
+    let callback = {
+        let callback_class = env.find_class("top/spacejoy/myxposed/ReturnConstCallback")?;
+        let bool_value = if return_value { 1 } else { 0 };
+        env.new_object(&callback_class, "(Z)V", &[JValue::Bool(bool_value)])?
+    };
+
+    // 注册 Hook
+    {
+        let callback_class = env.find_class("top/spacejoy/myxposed/HookCallback")?;
+        env.call_static_method(
+            &callback_class,
+            "hookMethod",
+            "(Ljava/lang/reflect/Member;Ltop/spacejoy/myxposed/HookCallback;)Lde/robv/android/xposed/XC_MethodHook$Unhook;",
+            &[JValue::Object(&method), JValue::Object(&callback)],
+        )?;
+    }
+
+    info!(
+        "Hook 成功: {}.{} -> {}",
+        class_name, method_name, return_value
+    );
+    Ok(())
+}
+
+/// Hook registerThirdApp 记录参数
+fn hook_register_third_app(env: &mut JNIEnv) -> Result<(), jni::errors::Error> {
+    info!("Hook OpenApiManager.registerThirdApp");
+
+    let target_class = match env.find_class("com/tencent/mobileqq/openapi/OpenApiManager") {
+        Ok(c) => c,
+        Err(e) => {
+            error!("未找到类 OpenApiManager: {:?}", e);
+            return Ok(());
+        }
+    };
+
+    // 查找 registerThirdApp 方法
+    let method = {
+        let methods = env
+            .call_method(
+                &target_class,
+                "getDeclaredMethods",
+                "()[Ljava/lang/reflect/Method;",
+                &[],
+            )?
+            .l()?;
+        let methods_array: JObjectArray = JObjectArray::from(methods);
+        let len = env.get_array_length(&methods_array)?;
+
+        let mut found_method = JObject::null();
+        for i in 0..len {
+            let method = env.get_object_array_element(&methods_array, i)?;
+            let name_result = env
+                .call_method(&method, "getName", "()Ljava/lang/String;", &[])?
+                .l()?;
+            let name_jstr = JString::from(name_result);
+            let java_name = env.get_string(&name_jstr)?;
+            let m_name: String = java_name.into();
+            if m_name == "registerThirdApp" {
+                found_method = method;
+                break;
+            }
+        }
+        found_method
+    };
+
+    if method.is_null() {
+        error!("未找到 registerThirdApp 方法");
+        return Ok(());
+    }
+
+    // 创建回调
+    let callback = {
+        let callback_class = env.find_class("top/spacejoy/myxposed/ReturnConstCallback")?;
+        env.new_object(&callback_class, "(I)V", &[JValue::Int(3)])?
+    };
+
+    // 注册 Hook
+    {
+        let callback_class = env.find_class("top/spacejoy/myxposed/HookCallback")?;
+        env.call_static_method(
+            &callback_class,
+            "hookMethod",
+            "(Ljava/lang/reflect/Member;Ltop/spacejoy/myxposed/HookCallback;)Lde/robv/android/xposed/XC_MethodHook$Unhook;",
+            &[JValue::Object(&method), JValue::Object(&callback)],
+        )?;
+    }
+
+    info!("registerThirdApp Hook 完成");
+    Ok(())
 }
 
 /// Hook 电话应用
