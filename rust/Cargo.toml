@@ -1,0 +1,16 @@
+[package]
+name = "rust_core"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"] # 编译为动态库
+
+[dependencies]
+# JNI支持，用于Rust调用Java的Xposed API
+jni = "0.21"
+# Flutter-Rust桥接，用于UI和核心逻辑交互
+flutter_rust_bridge = "2.0"
+# 日志支持
+log = "0.4"
+android_logger = "0.13"
