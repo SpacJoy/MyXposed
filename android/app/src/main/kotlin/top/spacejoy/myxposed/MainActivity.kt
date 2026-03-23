@@ -20,14 +20,6 @@ class MainActivity : FlutterActivity() {
                     val status = XposedStatusChecker.getActivationStatus(applicationContext)
                     result.success(status)
                 }
-                "getLastHookedPackage" -> {
-                    val pkg = XposedStatusChecker.getLastHookedPackage(applicationContext)
-                    result.success(pkg)
-                }
-                "resetActivationStatus" -> {
-                    XposedStatusChecker.resetActivationStatus(applicationContext)
-                    result.success(true)
-                }
                 else -> {
                     result.notImplemented()
                 }

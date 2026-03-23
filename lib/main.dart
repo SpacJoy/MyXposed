@@ -46,7 +46,6 @@ class _HomePageState extends State<HomePage> {
   Color _moduleStatusColor = Colors.grey;
   String _rustStatus = "已加载";
   String _hookCount = "1 个";
-  String _lastHookedPackage = "";
 
   @override
   void initState() {
@@ -62,25 +61,20 @@ class _HomePageState extends State<HomePage> {
 
     try {
       final bool isActivated = await platform.invokeMethod('isModuleActivated');
-      final String statusDetail = await platform.invokeMethod('getActivationStatus');
-      final String? lastPackage = await platform.invokeMethod('getLastHookedPackage');
       
       setState(() {
         if (isActivated) {
           _moduleStatus = "已激活";
           _moduleStatusColor = Colors.green;
-          _lastHookedPackage = lastPackage ?? "";
         } else {
           _moduleStatus = "未激活";
           _moduleStatusColor = Colors.red;
-          _lastHookedPackage = "";
         }
       });
     } on PlatformException catch (e) {
       setState(() {
         _moduleStatus = "检测失败";
         _moduleStatusColor = Colors.orange;
-        _lastHookedPackage = "";
       });
     }
   }
@@ -125,8 +119,6 @@ class _HomePageState extends State<HomePage> {
                   _buildStatusItem("模块激活状态", _moduleStatus, _moduleStatusColor),
                   _buildStatusItem("Rust 核心", _rustStatus, Colors.green),
                   _buildStatusItem("Hook 数量", _hookCount, Colors.orange),
-                  if (_lastHookedPackage.isNotEmpty)
-                    _buildStatusItem("最后Hook", _lastHookedPackage, Colors.blue),
                 ],
               ),
             ),
