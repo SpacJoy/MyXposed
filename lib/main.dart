@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'pages/setting_page.dart';
 
 void main() {
@@ -21,8 +22,58 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  static const platform = MethodChannel('com.myxposed/status');
+  
+  String _moduleStatus = "检测中...";
+  Color _moduleStatusColor = Colors.grey;
+  String _rustStatus = "已加载";
+  String _hookCount = "1 个";
+  String _lastHookedPackage = "";
+
+  @override
+  void initState() {
+    super.initState();
+    _checkModuleStatus();
+  }
+
+  Future<void> _checkModuleStatus() async {
+    setState(() {
+      _moduleStatus = "检测中...";
+      _moduleStatusColor = Colors.grey;
+    });
+
+    try {
+      final bool isActivated = await platform.invokeMethod('isModuleActivated');
+      final String statusDetail = await platform.invokeMethod('getActivationStatus');
+      final String? lastPackage = await platform.invokeMethod('getLastHookedPackage');
+      
+      setState(() {
+        if (isActivated) {
+          _moduleStatus = "已激活";
+          _moduleStatusColor = Colors.green;
+          _lastHookedPackage = lastPackage ?? "";
+        } else {
+          _moduleStatus = "未激活";
+          _moduleStatusColor = Colors.red;
+          _lastHookedPackage = "";
+        }
+      });
+    } on PlatformException catch (e) {
+      setState(() {
+        _moduleStatus = "检测失败";
+        _moduleStatusColor = Colors.orange;
+        _lastHookedPackage = "";
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,6 +81,11 @@ class HomePage extends StatelessWidget {
       appBar: AppBar(
         title: const Text("MyXposed"),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _checkModuleStatus,
+            tooltip: "刷新状态",
+          ),
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () {
@@ -56,9 +112,11 @@ class HomePage extends StatelessWidget {
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 12),
-                  _buildStatusItem("Xposed 框架", "已激活", Colors.green),
-                  _buildStatusItem("Rust 核心", "已加载", Colors.green),
-                  _buildStatusItem("Hook 数量", "5 个", Colors.orange),
+                  _buildStatusItem("模块激活状态", _moduleStatus, _moduleStatusColor),
+                  _buildStatusItem("Rust 核心", _rustStatus, Colors.green),
+                  _buildStatusItem("Hook 数量", _hookCount, Colors.orange),
+                  if (_lastHookedPackage.isNotEmpty)
+                    _buildStatusItem("最后Hook", _lastHookedPackage, Colors.blue),
                 ],
               ),
             ),
@@ -79,7 +137,7 @@ class HomePage extends StatelessWidget {
                 ListTile(
                   leading: const Icon(Icons.android),
                   title: const Text("目标应用"),
-                  subtitle: const Text("微信, QQ, 电话"),
+                  subtitle: const Text("微信"),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () {},
                 ),
