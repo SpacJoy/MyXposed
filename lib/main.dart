@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:dynamic_color/dynamic_color.dart';
 import 'pages/setting_page.dart';
 
 void main() {
@@ -11,13 +12,22 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'MyXposed',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.orange),
-        useMaterial3: true,
-      ),
-      home: const HomePage(),
+    return DynamicColorBuilder(
+      builder: (ColorScheme? lightDynamic, ColorScheme? darkDynamic) {
+        return MaterialApp(
+          title: 'MyXposed',
+          theme: ThemeData(
+            colorScheme: lightDynamic ?? ColorScheme.fromSeed(seedColor: Colors.blue),
+            useMaterial3: true,
+          ),
+          darkTheme: ThemeData(
+            colorScheme: darkDynamic ?? ColorScheme.fromSeed(seedColor: Colors.blue, brightness: Brightness.dark),
+            useMaterial3: true,
+          ),
+          themeMode: ThemeMode.system,
+          home: const HomePage(),
+        );
+      },
     );
   }
 }
