@@ -40,6 +40,10 @@
         <meta-data
             android:name="xposedminversion"
             android:value="82" />
+        <!-- LSPosed 作用域声明 -->
+        <meta-data
+            android:name="xposedscope"
+            android:resource="@array/xposed_scope" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
