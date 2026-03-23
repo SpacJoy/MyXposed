@@ -49,7 +49,7 @@ public class ReturnConstCallback extends HookCallback {
      */
     private void logRegisterThirdApp(MethodHookParam param) {
         try {
-            Object[] args = param.getArgs();
+            Object[] args = param.args;
             if (args != null && args.length >= 2) {
                 String appId = args[0] != null ? args[0].toString() : "null";
                 String pkgName = args[1] != null ? args[1].toString() : "null";
